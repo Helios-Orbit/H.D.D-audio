@@ -1,4 +1,4 @@
-# Helios Fish Audio Go SDK
+# H.D.D Audio SDK
 
 Fairy Audio Golang SDK, used for Helios Project
 
