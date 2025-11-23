@@ -1,4 +1,4 @@
-module fishaudio
+module github.com/Helios-Orbit/H.D.D-audio
 
 go 1.21
 
