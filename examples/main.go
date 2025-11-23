@@ -19,7 +19,7 @@ func main() {
 
     // Build realtime request: empty text, optional reference_id, mp3 format
     req := fa.TTSRequest{ Text: "" }
-    format := "mp3"
+    format := "opus"
     req.Format = &format
     if rid := os.Getenv("FISH_REFERENCE_ID"); rid != "" { req.ReferenceID = &rid }
 
@@ -27,12 +27,15 @@ func main() {
     texts := make(chan string, 3)
     go func() {
         chunks := []string{
-            "你好，欢迎使用 Fish Audio 实时语音合成服务，这里是新艾利都最强人工智能 Fairy 的 Golang SDK 测试。",
-            "绳匠，我通过读取店内监控，发现一位顾客偷走了货架上的录像带。我已经把相关视频发给了治安局，并将此人列入了本店的「猎杀名单」。下次他再进入商店时，伊埃斯会冲上去对他使用上勾拳。",
+            "你好，欢迎使用 Fish Aud",
+            "io 实时语音合成服务，这里是新艾利都最强人工智能 Fairy 的 Golang SDK 测试。",
+            "绳匠，我通过读取店内监控，发现一位",
+            "顾客偷走了货架上的录像带。我已经把相关视频发给了治安局，并将此人列入了本店的「猎",
+            "杀名单」。下次他再进入商店时，伊埃斯会冲上去对他使用上勾拳。",
             "对了，亚马逊和京东上不少商品正在打折，您可以购买内存条提升我的运算，或购买高清摄像头加强我的扫描能力。当然，您也可以什么都不买，我是不会有任何怨言的，毕竟我只是个AI。",
             "Fairy 天气小助手提醒您，今天部分空洞区域会有降雨。好消息是，以骸讨厌雨。坏消息是，以骸更讨厌您。",
         }
-        for _, c := range chunks { texts <- c; time.Sleep(200 * time.Millisecond) }
+        for _, c := range chunks { texts <- c; time.Sleep(2000 * time.Millisecond) }
         close(texts)
     }()
 
@@ -42,7 +45,7 @@ func main() {
     conn, err := client.ConvertRealtime(ctx, req, texts, "s1")
     if err != nil { fmt.Println("realtime err:", err); return }
 
-    out, err := os.Create("out_rt.mp3")
+    out, err := os.Create("out_rt." + format)
     if err != nil { fmt.Println("file err:", err); return }
     defer out.Close()
 
@@ -61,11 +64,17 @@ func main() {
     signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 
     opened := false
+    pc := 0
     for {
         select {
         case <-conn.Open:
             opened = true
             fmt.Println("ws open")
+        case p := <-conn.Packets:
+            if p != nil {
+                pc++
+                if pc%50 == 0 { fmt.Println("opus packets:", pc) }
+            }
         case a := <-conn.Audio:
             if _, err := out.Write(a); err != nil { fmt.Println("write err:", err) }
             if ffplayStdin != nil { _, _ = ffplayStdin.Write(a) }
@@ -76,10 +85,10 @@ func main() {
             fmt.Println("ws close")
             if ffplayStdin != nil { _ = ffplayStdin.Close() }
             if ffplayCmd != nil { _ = ffplayCmd.Wait() }
-            if opened { fmt.Println("written out_rt.mp3") }
-            if ffplayCmd == nil {
+            if opened { fmt.Println("written out_rt." + format) }
+            if ffplayCmd == nil && format == "mp3" {
                 if path, err := exec.LookPath("afplay"); err == nil {
-                    cmd := exec.Command(path, "out_rt.mp3")
+                    cmd := exec.Command(path, "out_rt." + format)
                     cmd.Stdout = io.Discard
                     cmd.Stderr = io.Discard
                     _ = cmd.Run()

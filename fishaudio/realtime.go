@@ -13,6 +13,7 @@ import (
 type RealtimeConnection struct {
     Open  chan struct{}
     Audio chan []byte
+    Packets chan []byte
     Error chan error
     Close chan struct{}
     ws    *websocket.Conn
@@ -34,7 +35,7 @@ func (c *Client) ConvertRealtime(ctx context.Context, req TTSRequest, texts <-ch
     if err != nil {
         return nil, err
     }
-    conn := &RealtimeConnection{Open: make(chan struct{}, 1), Audio: make(chan []byte, 256), Error: make(chan error, 1), Close: make(chan struct{}, 1), ws: ws}
+    conn := &RealtimeConnection{Open: make(chan struct{}, 1), Audio: make(chan []byte, 256), Packets: make(chan []byte, 1024), Error: make(chan error, 1), Close: make(chan struct{}, 1), ws: ws}
     conn.Open <- struct{}{}
     start := map[string]interface{}{"event": "start", "request": req}
     sb, _ := msgpack.Marshal(start)
@@ -54,6 +55,11 @@ func (c *Client) ConvertRealtime(ctx context.Context, req TTSRequest, texts <-ch
     }()
     go func() {
         defer func() { close(conn.Close) ; _ = ws.Close() }()
+        var demux *OggOpusDemux
+        if req.Format != nil {
+            f := strings.ToLower(*req.Format)
+            if f == "opus" { demux = NewOggOpusDemux() }
+        }
         for {
             _, data, err := ws.ReadMessage()
             if err != nil {
@@ -64,10 +70,16 @@ func (c *Client) ConvertRealtime(ctx context.Context, req TTSRequest, texts <-ch
             _ = msgpack.Unmarshal(data, &dec)
             ev, _ := dec["event"].(string)
             if ev == "audio" {
-                if a, ok := dec["audio"].([]byte); ok { conn.Audio <- a }
+                if a, ok := dec["audio"].([]byte); ok {
+                    conn.Audio <- a
+                    if demux != nil {
+                        for _, p := range demux.Push(a) { conn.Packets <- p }
+                    }
+                }
             } else if ev == "finish" {
                 r, _ := dec["reason"].(string)
                 if r == "error" { msg, _ := dec["message"].(string); select { case conn.Error <- &finishError{msg}: default: } }
+                if demux != nil { close(conn.Packets) }
                 return
             }
         }
