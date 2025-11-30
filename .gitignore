@@ -31,3 +31,4 @@ go.work.sum
 # .idea/
 # .vscode/
 examples/out_rt.mp3
+.trae

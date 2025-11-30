@@ -1,21 +1,23 @@
-# H.D.D Audio 
-Fairy Audio Golang SDK, used for Helios Project
+# H.D.D Audio SDK（中文）
 
-## 特性
-- 基于 `HTTP POST /v1/tts` 的批量 TTS（MsgPack 请求体）
-- 基于 `WS /v1/tts/live` 的实时 TTS 流式音频
-- 简单易用的客户端，使用 `Authorization: Bearer <FISH_API_KEY>` 授权
-- 支持通过 `reference_id` 与韵律（速度、音量）进行音色与风格调控
+Fairy Audio Golang SDK，用于 Helios 项目
+
+## 功能特性
+- 批量 TTS：通过 `HTTP POST /v1/tts`，请求体使用 MsgPack
+- 实时 TTS：通过 `WS /v1/tts/live`，流式返回音频片段
+- 简单客户端：`Authorization: Bearer <FISH_API_KEY>`
+- 声音条件：支持 `reference_id` 与韵律参数（速度、音量）
 - 灵活输出：`mp3`、`opus`，可配置采样率与码率
-- 低延迟流式管线，支持逐段 `flush`
+- 低延迟：支持 `flush` 控制的流式管线
+- 默认启用 WebSocket 连接池：按 `BaseURL|backend|format|reference_id` 池化，支持并发复用（多连接）
 
 ## 环境要求
 - `Go 1.21`
-- Fish Audio API 密钥（`FISH_API_KEY`）
+- Fish Audio API key（`FISH_API_KEY`）
 - 依赖：`github.com/gorilla/websocket`、`github.com/vmihailenco/msgpack/v5`
 
 ## 安装
-本 SDK 的模块名为 `fishaudio`。若从其他项目中使用，请在你的项目 `go.mod` 添加 `replace` 指令指向本仓库所在路径：
+本 SDK 的模块名为 `fishaudio`。如从其他项目使用，可在该项目的 `go.mod` 中添加 replace 指令指向本仓库：
 
 ```go
 module your-module
@@ -27,12 +29,14 @@ require fishaudio v0.0.0
 replace fishaudio => ../H.D.D-audio
 ```
 
-随后以 `fishaudio/fishaudio` 进行导入。
+然后以 `fishaudio/fishaudio` 方式导入包。
 
 ## 配置
-- `FISH_API_KEY`：必需，若未在 `NewClient("...")` 传入会从环境变量读取
-- `FISH_REFERENCE_ID`：可选，用于音色参考与拟合
-- 模型选择通过 `model` 请求头（例如 `"s1"`）
+- `FISH_API_KEY`：必填；也可在调用 `NewClient("...")` 传入
+- `FISH_REFERENCE_ID`：可选，用于音色条件（timbre）
+- 后端选择：通过 `model` 头（例如 `"s1"`）
+- 连接池默认：`MaxConnsPerKey=4`、`IdleTTL=60s`、`MaxLife=10m`
+- 缓冲区：`AudioBuf=256`、`PacketsBuf=1024`
 
 ## 使用示例
 
@@ -53,17 +57,16 @@ func main() {
     client, err := fa.NewClient(os.Getenv("FISH_API_KEY"))
     if err != nil { panic(err) }
 
-    req := fa.TTSRequest{ Text: "Fairy，您好" }
+    req := fa.TTSRequest{ Text: "Hello from Fairy" }
     req.Format = strPtr("mp3")
 
-    body, status, err := client.Convert(context.Background(), req, "s1")
+    body, _, err := client.Convert(context.Background(), req, "s1")
     if err != nil { panic(err) }
     defer body.Close()
 
     f, _ := os.Create("out.mp3")
     defer f.Close()
     _, _ = io.Copy(f, body)
-    _ = status // 需要时可检查 HTTP 状态码
 }
 ```
 
@@ -90,8 +93,8 @@ func main() {
 
     texts := make(chan string, 2)
     go func() {
-        texts <- "欢迎使用 Fish Audio 实时合成。"
-        texts <- "这里是 Helios 项目的 Fairy。"
+        texts <- "Welcome to Fish Audio realtime synthesis."
+        texts <- "This is Fairy speaking in Helios."
         close(texts)
     }()
 
@@ -119,15 +122,25 @@ func main() {
 }
 ```
 
-## API 速览
-- `client.go`（`fishaudio/client.go:15`）：`NewClient(apiKey string)`；空字符串时读取 `FISH_API_KEY`；默认 `BaseURL=https://api.fish.audio`。
-- `tts.go`（`fishaudio/tts.go:11`）：`Convert(ctx, req, backend)`；向 `/v1/tts` 发送 MsgPack 编码请求。
-- `realtime.go`（`fishaudio/realtime.go:21`）：`ConvertRealtime(ctx, req, texts, backend)`；连接 `wss://api.fish.audio/v1/tts/live` 进行流式合成。
-- `types.go`（`fishaudio/types.go:8`）：`TTSRequest` 定义文本、韵律、格式、采样率、码率、延迟、参考音色等字段。
+### 连接池与生命周期
+- 池 key：`BaseURL|backend|format|reference_id`
+- `RealtimeConnection.Close()`：释放租约，连接在池中保持打开以便复用
+- `RealtimeConnection.ForceClose()`：强制关闭并从池移除
+- `RealtimeConnection.Done()`：会话完成信号
 
-## 安全建议
-- 将 `FISH_API_KEY` 保存在安全的环境变量或密钥管理中
-- 切勿将密钥写入代码库或日志
+### 性能说明
+- 事件使用结构体并复用 MsgPack 编/解码器，降低分配与反射
+- Ogg/Opus Demux 提供缓冲上限与 `Reset()`，避免异常流导致内存增长
 
-## 许可协议
-MIT License，详见 `LICENSE`。
+## API
+- `client.go`（`fishaudio/client.go:15`）：`NewClient(apiKey string) (*Client, error)`；当入参为空从环境读取 `FISH_API_KEY`；默认 `BaseURL=https://api.fish.audio`
+- `tts.go`（`fishaudio/tts.go:11`）：`Convert(ctx, req, backend) (io.ReadCloser, status, error)`；向 `/v1/tts` 发送 MsgPack 请求
+- `realtime.go`（`fishaudio/realtime.go:21`）：`ConvertRealtime(ctx, req, texts, backend) (*RealtimeConnection, error)`；`wss://api.fish.audio/v1/tts/live`；默认走连接池
+- `types.go`（`fishaudio/types.go:8`）：`TTSRequest` 字段覆盖文本、韵律、格式、采样率、码率、延迟、reference id
+
+## 安全
+- 将 `FISH_API_KEY` 保存在安全存储或环境变量中
+- 不要提交任何密钥；不要打印密钥
+
+## 许可
+MIT License，详见 `LICENSE`

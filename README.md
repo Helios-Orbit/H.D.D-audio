@@ -9,6 +9,7 @@ Fairy Audio Golang SDK, used for Helios Project
 - Voice conditioning via `reference_id` and prosody controls (speed, volume)
 - Flexible output: `mp3`, `opus`, configurable sample rate and bitrates
 - Low‑latency streaming pipeline with flush control
+- Default WebSocket connection pooling by `BaseURL|backend|format|reference_id` with concurrent reuse (multi-conn)
 
 ## Requirements
 - `Go 1.21`
@@ -34,6 +35,8 @@ Then import the package as `fishaudio/fishaudio`.
 - `FISH_API_KEY`: required unless passed to `NewClient("...")`
 - `FISH_REFERENCE_ID`: optional voice reference id to condition Fairy’s timbre
 - Backend selection via the `model` header (e.g., `"s1"`)
+ - Connection pool defaults: `MaxConnsPerKey=4`, `IdleTTL=60s`, `MaxLife=10m`
+ - Buffers: `AudioBuf=256`, `PacketsBuf=1024`
 
 ## Usage
 
@@ -119,10 +122,20 @@ func main() {
 }
 ```
 
+### Pooling and lifecycle
+- Pool key: `BaseURL|backend|format|reference_id`.
+- `RealtimeConnection.Close()`: release the lease and keep WS open in pool.
+- `RealtimeConnection.ForceClose()`: close WS and remove from pool.
+- `RealtimeConnection.Done()`: session completion signal.
+
+### Performance notes
+- Struct-based MsgPack events with encoder reuse for lower allocations.
+- Ogg/Opus demuxer with buffer limit and reset to prevent memory growth.
+
 ## API
 - `client.go` (`fishaudio/client.go:15`): `NewClient(apiKey string) (*Client, error)`; reads `FISH_API_KEY` when empty; default `BaseURL=https://api.fish.audio`.
 - `tts.go` (`fishaudio/tts.go:11`): `Convert(ctx, req, backend) (io.ReadCloser, status, error)`; POST MsgPack to `/v1/tts`.
-- `realtime.go` (`fishaudio/realtime.go:21`): `ConvertRealtime(ctx, req, texts, backend) (*RealtimeConnection, error)`; WS `wss://api.fish.audio/v1/tts/live`.
+- `realtime.go` (`fishaudio/realtime.go:21`): `ConvertRealtime(ctx, req, texts, backend) (*RealtimeConnection, error)`; WS `wss://api.fish.audio/v1/tts/live`; default pooled connection.
 - `types.go` (`fishaudio/types.go:8`): `TTSRequest` with fields for text, prosody, format, sample rate, bitrates, latency, reference id.
 
 ## Security

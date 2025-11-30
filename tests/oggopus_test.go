@@ -1,6 +1,9 @@
-package fishaudio
+package tests
 
-import "testing"
+import (
+    "testing"
+    fa "github.com/Helios-Orbit/H.D.D-audio/fishaudio"
+)
 
 func page(laces []byte, payload []byte) []byte {
     h := make([]byte, 27)
@@ -11,7 +14,7 @@ func page(laces []byte, payload []byte) []byte {
 }
 
 func TestDemuxBasic(t *testing.T) {
-    d := NewOggOpusDemux()
+    d := fa.NewOggOpusDemux()
     p1 := []byte("OpusHead")
     p2 := []byte("OpusTags")
     a1 := []byte("AAAA")
