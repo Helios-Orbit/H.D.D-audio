@@ -85,7 +85,7 @@ func main() {
     c, err := fa.NewClient(key)
     if err != nil { fmt.Println("err:", err); return }
     req := fa.TTSRequest{ Text: "" }
-    format := "mp3"
+    format := "wav"
     req.Format = &format
     if rid := os.Getenv("FISH_REFERENCE_ID"); rid != "" { req.ReferenceID = &rid }
     s1 := []string{"会话一：第一句", "会话一：第二句", "会话一：第三句", "会话一：第四句", "会话一：第五句"}

@@ -7,7 +7,7 @@ Fairy Audio Golang SDK，用于 Helios 项目
 - 实时 TTS：通过 `WS /v1/tts/live`，流式返回音频片段
 - 简单客户端：`Authorization: Bearer <FISH_API_KEY>`
 - 声音条件：支持 `reference_id` 与韵律参数（速度、音量）
-- 灵活输出：`mp3`、`opus`，可配置采样率与码率
+- 灵活输出：`mp3`、`opus`、`wav`、`pcm`，可配置采样率与码率
 - 低延迟：支持 `flush` 控制的流式管线
 - 默认启用 WebSocket 连接池：按 `BaseURL|backend|format|reference_id` 池化，支持并发复用（多连接）
 
@@ -144,3 +144,16 @@ func main() {
 
 ## 许可
 MIT License，详见 `LICENSE`
+## 音频格式
+- WAV / PCM
+  - 采样率：8kHz、16kHz、24kHz、32kHz、44.1kHz
+  - 默认采样率：44.1kHz
+  - 16-bit，单声道
+- MP3
+  - 采样率：32kHz、44.1kHz（默认）
+  - 码率：64kbps、128kbps（默认）、192kbps
+  - 单声道
+- Opus
+  - 采样率：48kHz（默认）
+  - 码率：-1000（自动）、24kbps、32kbps（默认）、48kbps、64kbps
+  - 单声道

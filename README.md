@@ -7,7 +7,7 @@ Fairy Audio Golang SDK, used for Helios Project
 - Realtime TTS over `WS /v1/tts/live` streaming audio chunks
 - Simple client with `Authorization: Bearer <FISH_API_KEY>`
 - Voice conditioning via `reference_id` and prosody controls (speed, volume)
-- Flexible output: `mp3`, `opus`, configurable sample rate and bitrates
+- Flexible output: `mp3`, `opus`, `wav`, `pcm`, configurable sample rate and bitrates
 - Low‑latency streaming pipeline with flush control
 - Default WebSocket connection pooling by `BaseURL|backend|format|reference_id` with concurrent reuse (multi-conn)
 
@@ -144,3 +144,16 @@ func main() {
 
 ## License
 MIT License. See `LICENSE`.
+## Audio Formats
+- WAV / PCM
+  - Sample Rate: 8kHz, 16kHz, 24kHz, 32kHz, 44.1kHz
+  - Default Sample Rate: 44.1kHz
+  - 16-bit, mono
+- MP3
+  - Sample Rate: 32kHz, 44.1kHz (default)
+  - Bitrate: 64kbps, 128kbps (default), 192kbps
+  - mono
+- Opus
+  - Sample Rate: 48kHz (default)
+  - Bitrate: -1000 (auto), 24kbps, 32kbps (default), 48kbps, 64kbps
+  - mono

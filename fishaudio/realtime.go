@@ -61,9 +61,17 @@ func (c *Client) ConvertRealtime(ctx context.Context, req TTSRequest, texts <-ch
     _ = writeEvent(ws, StartEvent{Event: "start", Request: req})
     go func() {
         for t := range texts {
-            if err := writeEvent(ws, TextEvent{Event: "text", Text: t}); err != nil { select { case conn.Error <- err: default: } ; return }
+            if err := writeEvent(ws, TextEvent{Event: "text", Text: t}); err != nil {
+                if isAbnormalCloseError(err) { conn.ForceClose() ; return }
+                select { case conn.Error <- err: default: }
+                return
+            }
             if c.Pool != nil { c.Pool.TouchText(ws) }
-            if err := writeEvent(ws, FlushEvent{Event: "flush"}); err != nil { select { case conn.Error <- err: default: } ; return }
+            if err := writeEvent(ws, FlushEvent{Event: "flush"}); err != nil {
+                if isAbnormalCloseError(err) { conn.ForceClose() ; return }
+                select { case conn.Error <- err: default: }
+                return
+            }
         }
     }()
     go func() {
@@ -76,6 +84,7 @@ func (c *Client) ConvertRealtime(ctx context.Context, req TTSRequest, texts <-ch
         for {
             _, data, err := ws.ReadMessage()
             if err != nil {
+                if isAbnormalCloseError(err) { conn.ForceClose() ; return }
                 select { case conn.Error <- err: default: }
                 return
             }
@@ -109,3 +118,9 @@ func (c *RealtimeConnection) ForceClose() {
 func (c *RealtimeConnection) DoneCh() <-chan struct{} { return c.Close }
 
 func (c *RealtimeConnection) Stop() { _ = writeEvent(c.ws, StopEvent{Event: "stop"}) }
+
+func isAbnormalCloseError(err error) bool {
+    if err == nil { return false }
+    s := err.Error()
+    return strings.Contains(s, "close 1006") || strings.Contains(s, "close 1005") || strings.Contains(s, "unexpected EOF")
+}
